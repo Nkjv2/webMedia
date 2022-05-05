@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<style>
+    .content {
+        position: absolute;
+        left: 700px;
+    }
+</style>
+
+<body>
+    <div class="content">
+        <video id="player" width="300" height="500">
+
+        </video>
+        <canvas id="avator">
+            浏览器不支持！
+        </canvas>
+        <button id="btn">人脸认证</button>
+    </div>
+</body>
+<script>
+    var submit = document.querySelector("button#btn")
+    var videoPlayer = document.querySelector("video#player")
+    var can = document.querySelector("canvas#avator")
+    submit.onclick = function () {
+        can.width = videoPlayer.width
+        can.height = videoPlayer.height
+        can.getContext("2d").drawImage(videoPlayer, 0, 0)  // 根据定位和缩放可以调整大小
+        var base64 = can.toDataURL('image/png')  // 在这里设置图片的格式
+        var blob = dataURItoBlob(base64)  //  文件流最后上传使用
+        console.log(blob, "文件流")
+
+        // 关闭视频采集
+        const stream = videoPlayer.srcObject
+        const tracks = stream.getTracks();
+        tracks.forEach(function (track) {
+            track.stop();
+        });
+
+        videoPlayer.srcObject = null;
+    }
+
+    function dataURItoBlob(base64Data) {
+        //console.log(base64Data);//data:image/png;base64,
+        var byteString;
+        if (base64Data.split(',')[0].indexOf('base64') >= 0)
+            byteString = atob(base64Data.split(',')[1]);//base64 解码
+        else {
+            byteString = unescape(base64Data.split(',')[1]);
+        }
+        var mimeString = base64Data.split(',')[0].split(':')[1].split(';')[0];//mime类型 -- image/png
+
+        // var arrayBuffer = new ArrayBuffer(byteString.length); //创建缓冲数组
+        // var ia = new Uint8Array(arrayBuffer);//创建视图
+        var ia = new Uint8Array(byteString.length);//创建视图
+        for (var i = 0; i < byteString.length; i++) {
+            ia[i] = byteString.charCodeAt(i);
+        }
+        var blob = new Blob([ia], {
+            type: mimeString
+        });
+        return blob;
+    }
+
+    // 老的浏览器可能根本没有实现 mediaDevices，所以我们可以先设置一个空的对象
+    if (navigator.mediaDevices === undefined) {
+        navigator.mediaDevices = {};
+    }
+
+    // 一些浏览器部分支持 mediaDevices。我们不能直接给对象设置 getUserMedia
+    // 因为这样可能会覆盖已有的属性。这里我们只会在没有getUserMedia属性的时候添加它。
+    if (navigator.mediaDevices.getUserMedia === undefined) {
+        navigator.mediaDevices.getUserMedia = function (constraints) {
+
+            // 首先，如果有getUserMedia的话，就获得它
+            var getUserMedia = navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
+
+            // 一些浏览器根本没实现它 - 那么就返回一个error到promise的reject来保持一个统一的接口
+            if (!getUserMedia) {
+                return Promise.reject(new Error('getUserMedia is not implemented in this browser'));
+            }
+
+            // 否则，为老的navigator.getUserMedia方法包裹一个Promise
+            return new Promise(function (resolve, reject) {
+                getUserMedia.call(navigator, constraints, resolve, reject);
+            });
+        }
+    }
+
+    navigator.mediaDevices.getUserMedia({ audio: false, video: { width: 300, height: 500 } })
+        .then(function (stream) {
+            // 旧的浏览器可能没有srcObject
+            if ("srcObject" in videoPlayer) {
+                videoPlayer.srcObject = stream;
+            } else {
+                // 防止在新的浏览器里使用它，应为它已经不再支持了
+                videoPlayer.src = window.URL.createObjectURL(stream);
+            }
+            videoPlayer.onloadedmetadata = function (e) {
+                videoPlayer.play();
+            };
+        })
+        .catch(function (err) {
+            console.log(err.name + ": " + err.message);
+        });
+
+</script>
+
+</html>
